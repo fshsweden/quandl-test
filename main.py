@@ -1,38 +1,34 @@
-import pandas_datareader.data as web
 from talib import RSI, BBANDS, MACD
-import quandl
+import pandas as pd
+import glob
 
-start = '2015-04-22'
-end = '2020-12-02'
+def work():
+    mylist = [f for f in glob.glob("*.csv")]
+    for f in mylist:
+        load_and_test(f)
 
-symbol = 'MCD'
-max_holding = 100
-price = web.DataReader(name=symbol, data_source='quandl', start=start, end=end)
-price = price.iloc[::-1]
-price = price.dropna()
-close = price['AdjClose'].values
-up, mid, low = BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
-rsi = RSI(close, timeperiod=14)
+def load_and_test(filename):
+    df = pd.read_csv(filename)
+    print(df.columns)
 
-print("RSI (first 10 elements)\n", rsi[14:24])
+    close = df['AdjClose']
 
-macd = MACD(close)
-print(macd)
+    try:
+        up, mid, low = BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+        rsi = RSI(close, timeperiod=14)
+        # print("RSI (first 10 elements)\n", rsi[14:24])
+        macd, macdsignal, macdhistogram = MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
+        #print(type(rsi), type(macd))
 
-import matplotlib
-import matplotlib.pyplot as plt
-df = quandl.get('CHRIS/MCX_CL1', start_date='2020-01-01', end_date='2020-12-02')
-#res["mavg(50)"] = res[]
-#print(type(res))
+        tmpdf = pd.DataFrame()
+        tmpdf["DATE"] = df[]
+        tmpdf["MACD"] = macd
+        tmpdf["MACDSIGNAL"] = macdsignal
+        tmpdf["MACDHIST"] = macdhistogram
 
-print("All rows and second to last column")
-print(df.iloc[:, 0:3])
-print("Index[0]")
-print(df.index[1:5])
+        print(tmpdf.tail())
+    except:
+        print(f"EXCEPTION on {filename}!")
 
-#df_T = df.DataFrame(df.iloc[:,-2])
-
-
-#df.plot()
-#plt.show()
-
+if __name__ == '__main__':
+    work()
