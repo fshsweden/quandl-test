@@ -1,4 +1,7 @@
 .idea
 DL
 SLASK
+dist/
+build/
+__pycache__
 
