@@ -3,7 +3,7 @@
 block_cipher = None
 
 
-a = Analysis(['csv_to_sql.py'],
+a = Analysis(['strat.py'],
              pathex=['/mnt/043CF6233CF60F82/dev/FSHProjects/quandl-test'],
              binaries=[],
              datas=[],
@@ -23,7 +23,7 @@ exe = EXE(pyz,
           a.zipfiles,
           a.datas,
           [],
-          name='csv_to_sql',
+          name='strat',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,

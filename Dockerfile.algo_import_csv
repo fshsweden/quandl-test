@@ -1,0 +1,17 @@
+FROM python:3
+
+ADD import_csv.py /
+ADD Schema.py /
+ADD MacdStrategy.py /
+ADD SmaCrossStrategy.py /
+ADD Stochastic1.py /
+ADD tools.py /
+ADD build_ta_lib /
+ADD requirements.txt /
+
+RUN ["/bin/bash", "-c", "ls -la"]
+RUN ["/bin/bash", "-c", "./build_ta_lib"]
+
+RUN pip install -r requirements.txt
+
+CMD [ "python", "./import_csv.py", "-h" ]

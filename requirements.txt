@@ -5,3 +5,5 @@ Quandl
 scipy
 Backtesting
 SQLAlchemy
+ta-lib
+mysql-connector-python

@@ -1,0 +1,13 @@
+apt-get update
+apt-get install build-essential -y
+apt-get install python3-dev -y
+
+pip install -U setuptools
+
+wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+tar -xvf ta-lib-0.4.0-src.tar.gz
+
+cd ta-lib
+./configure --prefix=/usr
+make
+make install
