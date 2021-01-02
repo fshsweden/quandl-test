@@ -11,6 +11,7 @@ import os
 import sys
 import importlib.util
 
+
 def restricted_float(x):
     try:
         x = float(x)
@@ -18,31 +19,9 @@ def restricted_float(x):
         raise argparse.ArgumentTypeError("%r not a floating-point literal" % (x,))
 
     if x < 0.0 or x > 1.0:
-        raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]"%(x,))
+        raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]" % (x,))
     return x
 
-strategies = []
-path_list = [os.path.join(dirpath,filename) for dirpath, _, filenames in os.walk('./Strategies') for filename in filenames if filename.endswith('.py')]
-for p in path_list:
-    # file_path = 'Strategies/Stochastic1.py'
-    file_path = p
-
-    #module_name = 'StochasticStrategy1'
-    module_name = ntpath.basename(file_path)
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    strategy_class = module.get_strategy()
-    # res = dir(module)
-    strategies.append(strategy_class)
-
-# from Strategies.* import *
-
-# Run these strategies:
-# strategies = [MacdStrategy, BuyDipStrategy, SmaCrossStrategy]
-# strategies = [SmaCrossStrategy]
-# strategies = [module.StochasticStrategy1]
-# strategies = [MacdStrategy]
 
 # keywords
 BT_START = "Start"
@@ -62,7 +41,7 @@ BT_MAX_DRAWDOWN_PCT = "Max. Drawdown [%]"
 BT_AVG_DRAWDOWN_PCT = "Avg. Drawdown [%]"
 BT_MAX_DRAWDOWN_DUR = "Max. Drawdown Duration"
 BT_AVG_DRAWDOWN_DUR = "Avg. Drawdown Duration"
-BT_TRADES = "# Trades"
+BT_NUM_TRADES = "# Trades"
 BT_WIN_RATE_PCT = "Win Rate [%]"
 BT_BEST_TRADE_PCT = "Best Trade [%]"
 BT_WORST_TRADE_PCT = "Worst Trade [%]"
@@ -74,6 +53,7 @@ BT_EXPECTANCY_PCT = "Expectancy [%]"
 BT_SQN = "SQN"
 BT_STRATEGY = "_strategy"
 BT_EQUITY_CURVE = "_equity_curve"
+BT_TRADES_LIST = "_trades"
 
 parser = argparse.ArgumentParser(description="Strategy Backtesting App")
 parser.add_argument("--dbtype", default="mysql", help="database type, for example mysql or sqlite")
@@ -87,21 +67,64 @@ parser.add_argument("--echosql", action='store_true', help="Echo all SQL to cons
 
 parser.add_argument("--ticker", default="ALL", help="List of comma-separated tickers")
 parser.add_argument("-s", "--strategys", default="ALL", help="List of comma-separated tickers")
+parser.add_argument("-sl", "--strategylib", default="./Strategies", help="List of comma-separated directories")
 
 parser.add_argument("--plot", default=False, action='store_true', help="Save plot to HTML page")
 parser.add_argument("--saveresult", default=False, action='store_true', help="Save result (incl trades) to database")
 parser.add_argument("--showresult", default=False, action='store_true', help="Show result (no trades) on console")
-parser.add_argument("-v", "--verbose", default=False, action='store_true', help="Show status messages while executing app")
+parser.add_argument("-v", "--verbose", default=False, action='store_true',
+                    help="Show status messages while executing app")
 
-parser.add_argument("--commission", type=restricted_float, default=0.002, help="Commission expressed as a float. 0.002 = 0.2%%")
-parser.add_argument("--slippage", type=restricted_float, default=0.002, help="Slippage expressed as a float. 0.002 = 0.2%%")
+parser.add_argument("--commission", type=restricted_float, default=0.002,
+                    help="Commission expressed as a float. 0.002 = 0.2%%")
+parser.add_argument("--slippage", type=restricted_float, default=0.002,
+                    help="Slippage expressed as a float. 0.002 = 0.2%%")
 parser.add_argument("-d", "--days", type=int, default=504, help="Days to backtest")
+
+# filter to save
+parser.add_argument("--mintrades", type=int, default=1, help="Minimum # of trades to save result")
+parser.add_argument("--minreturn", default=0.0, help="Minimum return to save result")
+parser.add_argument("--minexposure", default=0.0, help="Minimum exposure time")
+parser.add_argument("--mintradeduration", default=1, help="Minimum trade duration (days)")
+parser.add_argument("--maxtradeduration", default=60, help="Maximum trade duration (days)")
+parser.add_argument("--maxdrawdown", default=30, help="Maximum drawdown duration (days)")
+parser.add_argument("--minwinrate", default=0.0, help="Minimum win rate %")
 
 try:
     args = parser.parse_args()
 except argparse.ArgumentError:
     parser.print_help()
     sys.exit(2)
+
+#
+#
+#
+strategy_filter = args.strategys.split(",")
+
+#
+# Load Strategies
+#
+strategies = []
+strategy_folders = args.strategylib.split(",")
+for strategy_folder in strategy_folders:
+    # './Strategies'
+    path_list = [os.path.join(dirpath, filename)
+                 for dirpath, _, filenames in os.walk(strategy_folder)
+                 for filename in filenames if filename.endswith('.py')]
+    for p in path_list:
+        # file_path = 'Strategies/Stochastic1.py'
+        file_path = p
+
+        # module_name = 'StochasticStrategy1'
+        module_name = ntpath.basename(file_path)
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        strategy_class = module.get_strategy()
+
+        if strategy_class.__name__ in strategy_filter:
+            print(f"Loading Strategy {strategy_class.__name__}")
+            strategies.append(strategy_class)
 
 Schema.migrate(args)
 engine = Schema.get_engine()
@@ -111,7 +134,7 @@ session = Session()
 
 
 def get_all_tickers():
-    table_df=pd.read_sql_query(
+    table_df = pd.read_sql_query(
         f"SELECT distinct name FROM closing_prices",
         con=engine,
         index_col=None
@@ -123,7 +146,7 @@ def get_all_tickers():
 #
 #
 def load_prices_from_db(ticker):
-    table_df=pd.read_sql_query(
+    table_df = pd.read_sql_query(
         f"SELECT date as Date, open as Open, close as Close, high as High, low as Low, volume as Volume FROM closing_prices where name='{ticker}' order by date ",
         con=engine,
         index_col='Date',
@@ -136,14 +159,13 @@ def load_prices_from_db(ticker):
 
 
 def save_stats(run, ticker, strat, product_data, stats):
+    p = session.query(Schema.Product).filter_by(name=ticker).first()
 
-    p=session.query(Schema.Product).filter_by(name=ticker).first()
-
-    srr=Schema.StrategyRunResult(
+    srr = Schema.StrategyRunResult(
         date=run.date,
         time=run.time,
 
-        strategy_run = run,
+        strategy_run=run,
 
         product=p,
 
@@ -197,15 +219,15 @@ def save_stats(run, ticker, strat, product_data, stats):
         # Avg. Trade Duration          46 days 00:00:00
         avg_trade_duration=str(stats["Avg. Trade Duration"]),
         # Profit Factor                         2.08802
-        profit_factor=0, # stats["Profit Factor"],
+        profit_factor=0,  # stats["Profit Factor"],
         # Expectancy [%]                        8.79171
-        expectancy=0, # stats["Expectancy [%]"],
+        expectancy=0,  # stats["Expectancy [%]"],
         # SQN                                  0.916893
-        sqn=0, #stats["SQN"],
+        sqn=0,  # stats["SQN"],
         # _strategy                            SmaCross
         strategy=str(stats["_strategy"]),
         # _equity_curve                           Eq...
-        equity_curve="Equity Curve here" # str(stats["_equity_curve"])
+        equity_curve="Equity Curve here"  # str(stats["_equity_curve"])
     )
 
     session.add(srr)
@@ -242,20 +264,24 @@ def save_stats(run, ticker, strat, product_data, stats):
 
 if __name__ == '__main__':
 
-    do_save = False
+    run = None
 
     if args.ticker == "ALL":
-        tickers=get_all_tickers()
+        tickers = get_all_tickers()
     else:
         tickers = args.ticker.split(",")
 
-    if do_save:
+    if args.saveresult:
         now = datetime.now()  # current date and time
-        date = now.strftime("%Y%d%m")
+        date = now.strftime("%Y%m%d")
         time = now.strftime("%H:%M:%S")
 
+        cmdline_args = '\n'.join(sys.argv[1:])
+        cmdline_args = cmdline_args.replace('\r', ' ')
+        cmdline_args = cmdline_args.replace('\n', ' ')
+
         run = Schema.StrategyRun(
-            description="Test",
+            description=cmdline_args,
             date=date,
             time=time
         )
@@ -271,24 +297,44 @@ if __name__ == '__main__':
             df = load_prices_from_db(ticker)
 
             try:
-                if args.verbose:
-                    print(f"Backtesting {ticker} using {strat.__name__}")
-
                 days = int(args.days)
 
                 bt = Backtest(df.iloc[-args.days:],
                               strat,
                               cash=10_000,
                               commission=args.commission + args.slippage)
+
                 stats = bt.run()
-                if stats is not None:
-                    if args.saveresult:
-                        print("Saving stats for ", ticker, " ", stats[BT_WIN_RATE_PCT])
-                    if args.showresult:
-                        print(f"{ticker}")
-                        print(f"{stats}")
-                    if args.plot and len(tickers) < 5:
-                        bt.plot()
+
+                if stats is not None and stats[BT_NUM_TRADES] > args.mintrades:
+
+                    if args.verbose:
+                        print(
+                            f"Backtested {ticker} using {strat.__name__} gave {stats[BT_NUM_TRADES]} trades and return {stats[BT_RET_ANN_PCT]} with average pct/dur {stats[BT_AVG_TRADE_PCT]} / {stats[BT_AVG_TRADE_DUR]}")
+
+                    # Only interested in winning strategies
+                    if stats[BT_RET_ANN_PCT] > 25.0 and stats[BT_RET_ANN_PCT] > stats[BT_BUY_AND_HOLD_RET_PCT]:
+                        if args.saveresult:
+
+                            # "--mintrades", type=int, default=0, help="Minimum # of trades to save result"
+                            # "--minreturn", default=35.0, help="Minimum return to save result"
+                            # "--minexposure", default=60.0, help="Minimum exposure time"
+                            # "--mintradeduration", default=60, help="Minimum trade duration (days)"
+                            # "--maxtradeduration", default=5, help="Maximum trade duration (days)"
+                            # "--maxdrawdown", default=30, help="Maximum drawdown duration (days)"
+                            # "--minwinrate", default=60.0, help="Minimum win rate %"
+
+                            print(
+                                f"Saving stats for {strat.__name__}/ {ticker} "
+                                f"with annual return {stats[BT_RET_ANN_PCT]} "
+                                f"and win% {stats[BT_WIN_RATE_PCT]}")
+                            save_stats(run, ticker, strat, df, stats)
+
+                        if args.showresult:
+                            print(f"{ticker}")
+                            print(f"{stats}")
+                        if args.plot and len(tickers) < 5:
+                            bt.plot()
 
             except Exception as ex:
                 print(f"Error {ex} when backtesting using {strat}")

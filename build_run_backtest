@@ -1,0 +1,2 @@
+sudo docker build . -f Dockerfile.algo_run_backtest -t algo_run_backtest:1.1
+

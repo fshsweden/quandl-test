@@ -1,0 +1,2 @@
+sudo docker build . -f Dockerfile.algo_import_csv -t import_csv
+

@@ -23,6 +23,11 @@ class Product(Base):
 
     exchange = Column('exchange', String(80)) # primary exchange? or a list of exchanges???
 
+    minvol = Column('minvol', Numeric(14,4))
+    maxvol = Column('maxvol', Numeric(14,4))
+    meanvol = Column('meanvol', Numeric(14,4))
+    medianvol = Column('medianvol', Numeric(14,4))
+
     def __repr__(self):
         return "<StrategyRunResult(date='%s', time='%s', name='%s', sectype='%s', exchange='%s', currency='%s')>" % (self.date, self.time)
 

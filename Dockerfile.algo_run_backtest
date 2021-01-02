@@ -2,10 +2,12 @@ FROM python:3
 
 ADD run_backtest.py /
 ADD Schema.py /
-ADD BuyDipStrategy.py /
-ADD MacdStrategy.py /
-ADD SmaCrossStrategy.py /
-ADD Stochastic1.py /
+
+ADD Strategies/BuyDipStrategy.py /
+ADD Strategies/MacdStrategy.py /
+ADD Strategies/SmaCrossStrategy.py /
+ADD Strategies/Stochastic1.py /
+
 ADD tools.py /
 ADD build_ta_lib /
 ADD requirements.txt /
